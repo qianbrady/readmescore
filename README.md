@@ -1,38 +1,41 @@
 # ReadmeScore
 
-Paste a README.md → get an honest 0–100 newcomer-friendliness score across 12 weighted checks. 100% offline: a single HTML file, zero dependencies, nothing leaves your browser.
+![License](https://img.shields.io/badge/license-MIT-green) ![Offline](https://img.shields.io/badge/network-none-blue) ![Live](https://img.shields.io/badge/try%20it-online-8A2BE2)
 
-**Live tool:** https://qianbrady.github.io/readmescore/ · 中文界面可一键切换。
+Paste a README - get an honest 0-100 newcomer-friendliness score across 12 weighted checks.
 
-## What it checks (weights sum to 100)
+**Try it now:** <https://qianbrady.github.io/readmescore/> - single-file web tool, nothing leaves your browser.
 
-| # | Check | Weight |
-|---|---|---|
-| 1 | H1 title + one-line tagline | 10 |
-| 2 | Badges in first 15 lines | 5 |
-| 3 | Intro paragraph ≤120 chars | 10 |
-| 4 | Install section with fenced command | 15 |
-| 5 | Quickstart ≤10 steps | 15 |
-| 6 | Usage/example section | 10 |
-| 7 | Screenshot/GIF placeholder | 5 |
-| 8 | License section | 10 |
-| 9 | Contributing section | 5 |
-| 10 | No bare TODO/FIXME | 5 |
-| 11 | No heading-level jumps | 5 |
-| 12 | External links well-formed | 5 |
+## Install
 
-Every failed check ships with a one-line concrete fix, not just a red X.
+No dependencies. Grab the file:
 
-## Fidelity
+```bash
+git clone https://github.com/qianbrady/readmescore.git
+```
 
-The JS engine is a faithful port of the Python CLI
-[readme-gauntlet](https://github.com/qianbrady/readme-gauntlet) — verified side-by-side:
-identical totals on both a perfect README (100/100) and a flawed one (50/100).
+Then open `index.html` in any browser.
 
-## Run locally
+## Quickstart
 
-Open `index.html` in any browser. That's it.
+1. Open the live page (or local `index.html`)
+2. Paste your content into the input box
+3. Press the primary button
+4. Read the score / result panel
+
+## Usage
+
+```
+Input : your pasted text (see placeholder for exact format)
+Output: score panel + per-item breakdown + copyable Markdown where applicable
+```
+
+Each failed check ships a one-line concrete fix. EN/ZH toggle built in.
+
+## Contributing
+
+Issues and PRs welcome - this is a zero-dependency static page, so any text editor is a complete dev environment.
 
 ## License
 
-MIT © 2025
+[MIT](LICENSE) (c) 2025
