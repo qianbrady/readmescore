@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReadmeScore — README quality scorer (0–100)</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--fg:#e6edf3;--muted:#8b949e;--green:#3fb950;--red:#f85149;--amber:#d29922;--accent:#58a6ff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans SC",sans-serif;line-height:1.55;padding:24px}
+.wrap{max-width:980px;margin:0 auto}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px}
+h1{font-size:26px}h1 .score{color:var(--accent)}
+.tag{color:var(--muted);margin-top:4px;font-size:14px}
+.lang-btn{background:var(--card);border:1px solid var(--border);color:var(--fg);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px}
+.panel{display:grid;grid-template-columns:1fr 300px;gap:16px}
+@media(max-width:820px){.panel{grid-template-columns:1fr}}
+textarea{width:100%;height:420px;background:var(--card);color:var(--fg);border:1px solid var(--border);border-radius:8px;padding:14px;font:13px/1.5 ui-monospace,Consolas,monospace;resize:vertical}
+.btnrow{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+button.primary{background:#238636;color:#fff;border:none;border-radius:6px;padding:9px 18px;font-size:14px;font-weight:600;cursor:pointer}
+button.ghost{background:transparent;color:var(--accent);border:1px solid var(--border);border-radius:6px;padding:9px 14px;cursor:pointer}
+.gauge-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;text-align:center}
+.ring{width:150px;height:150px;border-radius:50%;margin:12px auto;display:flex;align-items:center;justify-content:center;position:relative;background:conic-gradient(var(--ring,#30363d) calc(var(--pct)*1%),#21262d 0)}
+.ring::before{content:"";position:absolute;inset:12px;border-radius:50%;background:var(--card)}
+.ring .num{position:relative;font-size:40px;font-weight:700}
+.verdict{font-size:15px;font-weight:600;margin-top:6px}
+ul.checks{list-style:none;text-align:left;margin-top:8px}
+li.check{padding:9px 10px;border-bottom:1px solid var(--border);font-size:13px}
+li.check:last-child{border-bottom:none}
+li.check .t{display:flex;justify-content:space-between;gap:8px}
+li.check .w{color:var(--muted);white-space:nowrap}
+.pass{color:var(--green)}.fail{color:var(--red)}
+.detail{color:var(--muted);margin-top:3px;font-size:12px}
+.sugg{margin-top:3px;font-size:12px;color:var(--amber)}
+footer{margin-top:22px;color:var(--muted);font-size:12.5px;text-align:center}
+footer a{color:var(--accent)}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div>
+    <h1>Readme<span class="score">Score</span></h1>
+    <div class="tag" id="tagline">Paste a README.md — get an honest 0–100 newcomer-friendliness score across 12 checks. 100% offline, nothing leaves your browser.</div>
+  </div>
+  <button class="lang-btn" id="langBtn" onclick="toggleLang()">中文</button>
+</header>
+
+<div class="panel">
+  <div>
+    <textarea id="input" placeholder="# My Project&#10;&#10;One-line tagline…&#10;&#10;## Install&#10;```bash&#10;pip install my-project&#10;```"></textarea>
+    <div class="btnrow">
+      <button class="primary" id="goBtn" onclick="runScore()">Score my README</button>
+      <button class="ghost" onclick="loadExample()" id="exBtn">Load example</button>
+      <button class="ghost" onclick="document.getElementById('output').classList.add('hidden')" id="clrBtn">Clear</button>
+    </div>
+    <div id="output" class="hidden">
+      <h2 style="margin:18px 0 8px;font-size:17px" id="detailTitle">Per-check details</h2>
+      <ul class="checks" id="checksList"></ul>
+    </div>
+  </div>
+
+  <div class="gauge-card">
+    <div id="gaugeLabel" style="color:var(--muted);font-size:13px">SCORE</div>
+    <div class="ring" id="ring"><div class="num" id="num">–</div></div>
+    <div class="verdict" id="verdict">—</div>
+    <ul class="checks" id="miniStats"></ul>
+    <div style="margin-top:14px;color:var(--muted);font-size:11.5px" id="privacyNote">No network requests · no tracking · single-file tool</div>
+  </div>
+</div>
+
+<footer>
+  ReadmeScore is the web sibling of the CLI tool
+  <a href="https://github.com/qianbrady/readme-gauntlet">readme-gauntlet</a> — same 12 checks, same weights.
+  © 2025 MIT.
+</footer>
+</div>
+
+<script>
+"use strict";
+/* ---------- i18n ---------- */
+const I18N = {
+  en:{tagline:"Paste a README.md — get an honest 0–100 newcomer-friendliness score across 12 checks. 100% offline, nothing leaves your browser.",
+      go:"Score my README", ex:"Load example", clr:"Clear", detail:"Per-check details", score:"SCORE",
+      verdicts:[[85,"Excellent — ship it"],[70,"Good — polish a few checks"],[50,"Mediocre — newcomers will struggle"],[0,"Poor — high risk of losing readers"]],
+      pass:"PASS", fail:"FAIL", noFix:"(no change needed)", fixHint:"Fix:", passedOf:(a,b)=>a+" of "+b+" checks passed",
+      empty:"Nothing to score yet."},
+  zh:{tagline:"粘贴一份 README.md —— 12 项检查给出诚实的 0–100 新人友好度评分。纯离线，内容不出浏览器。",
+      go:"给我的 README 打分", ex:"加载示例", clr:"清空", detail:"逐项明细", score:"得分",
+      verdicts:[[85,"优秀——可以直接发布"],[70,"良好——再修几项就很好"],[50,"平庸——新人会看不懂"],[0,"较差——读者流失风险高"]],
+      pass:"通过", fail:"未过", noFix:"（无需修改）", fixHint:"改法：", passedOf:(a,b)=>a+" / "+b+" 项通过",
+      empty:"还没有可评分的内容。"}
+};
+let LANG = "en";
+function t(){return I18N[LANG];}
+
+/* ---------- minimal markdown parsing helpers (ported from readme-gauntlet/checks.py) ---------- */
+const RE_ATX = /^(#{1,6})\s+(\S.*)$/;
+const RE_FENCE = /^\s*(```+|~~~+)[^\r\n]*$/;
+const RE_IMAGE_LINE = /^\s*!\[[^\]]*\]\([^)]*\)\s*$/;
+const RE_IMAGE_SRC = /!\[([^\]]*)\]\(([^)]*)\)/g;
+const RE_MD_LINK = /\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/g;
+const RE_AUTOLINK = /<https?:\/\/[^>\s]+>/g;
+const RE_BARE_URL = /https?:\/\/[^\s<>"')\]\u3000]*/g;
+const RE_TODO = /\b(?:TODO|FIXME|XXX)\b/;
+const RE_ORDERED = /^\s*\d{1,3}[.)]\s+\S/;
+const RE_LICENSE_KW = /\b(MIT|APACHE-?2\.?0?|GPL-?[0-9]|BSD-?[0-9]?|ISC|UNLICENSE|CC0|MPL-?2\.0?)\b/i;
+const RE_MEDIA_IMG = /demo|screen|screenshot|gif|预览|截图/i;
+const RE_MEDIA_WORDS = /screenshot|screencast|demo|gif|动画|截图|演示|预览/i;
+const BADGE_HINTS = ["img.shields.io","shields.io","badgen.net","github.com/","/badge/"];
+const COMMAND_TOKENS = new Set(["pip","pip3","python","python3","npm","npx","yarn","pnpm","bun","deno","cargo","go","brew","gem","apt","apt-get","curl","wget","git","uv","poetry","pdm","pipx","make","composer","docker","scoop","choco","flutter","dotnet","conda","mamba","ruby"]);
+
+function withoutCode(lines){ const out=[]; let f=false;
+  for(const line of lines){ if(RE_FENCE.test(line)){f=!f;continue;} if(!f) out.push(line);} return out;}
+function isStructural(line){ return line.startsWith("|")||line.startsWith("- ")||line.startsWith("* ")||line.startsWith("> ")||/^\d+\.\s/.test(line);}
+function paragraphs(lines){ const paras=[]; let cur=[]; let f=false;
+  for(const raw of lines){ const line=raw.trim();
+    if(RE_FENCE.test(line)){ f=!f; if(cur.length){paras.push(cur.join(" "));cur=[];} continue;}
+    if(f) continue;
+    if(!line||RE_ATX.test(line)||RE_IMAGE_LINE.test(line)||isStructural(line)){ if(cur.length){paras.push(cur.join(" "));cur=[];} continue;}
+    cur.push(line);}
+  if(cur.length) paras.push(cur.join(" "));
+  return paras;}
+function findHeading(lines,pattern){ const rx=new RegExp(pattern,"i");
+  for(let i=0;i<lines.length;i++){ const m=RE_ATX.exec(lines[i]); if(m&&rx.test(m[2])) return i;} return null;}
+function section(lines,idx){ const level=RE_ATX.exec(lines[idx])[1].length; const out=[]; let f=false;
+  for(const line of lines.slice(idx+1)){
+    if(RE_FENCE.test(line)){f=!f;out.push(line);continue;}
+    const m=RE_ATX.exec(line);
+    if(m&&m[1].length<=level&&!f) break;
+    out.push(line);}
+  return out;}
+function fenceBlocks(lines){ const blocks=[]; let cur=null;
+  for(const line of lines){
+    if(RE_FENCE.test(line)){ if(cur===null){cur=[];} else { if(cur.some(x=>x.trim())) blocks.push(cur); cur=null; } }
+    else if(cur!==null) cur.push(line);}
+  return blocks;}
+
+/* ---------- the 12 checks (weights sum to 100) ---------- */
+function runChecks(text){
+  const lines=text.split("\n");
+  const results=[];
+  function push(key,tz,te,w,passed,detail,suggestion){
+    results.push({key,title:LANG==="zh"?tz:te,weight:w,passed,detail,suggestion});}
+  function L(zh,en){return LANG==="zh"?zh:en;}
+  function S(zh,en){return LANG==="zh"?("改法："+zh):("Fix: "+en);}
+  function NOFIX(){return LANG==="zh"?"（无需修改）":"(no change needed)";}
+
+  /* 1 h1_tagline 10 */
+  const nonEmpty=lines.filter(l=>l.trim());
+  {let ok=false,detail="",sugg="";
+   if(!nonEmpty.length){detail=Z?"文件为空或无可读内容":"File is empty or unreadable";sugg=S("从首行开始写：`# <项目名>`, 下一行紧跟一句话定位。","Start line 1 with `# <Project>` then one-line tagline.");}
+   else{const first=nonEmpty[0];const m=RE_ATX.exec(first);
+     if(!m){detail=L("首行不是 H1 标题","First line is not an H1");sugg=S("把第一行改为 `# <项目名>`。","Make line 1 `# <Project>`.");}
+     else if(m[1].length!==1){detail=L(`首行是 H${m[1].length} 而非 H1`,`Line 1 is H${m[1].length}, not H1`);sugg=S("改为单井号 H1。","Use a single # (H1).");}
+     else{let seen=0;
+       for(const line of nonEmpty.slice(1)){
+         if(RE_ATX.test(line)||RE_IMAGE_LINE.test(line)||RE_FENCE.test(line))continue;
+         seen++;
+         if(line.trim().length<=100){ok=true;detail=L("H1 与一句话 tagline 齐全","H1 + tagline present");break;}
+         if(seen>=3)break;}
+       if(!ok){detail=L("H1 后前 3 行内未发现一句话 tagline","No one-line tagline within 3 lines after H1");
+         sugg=S("在 H1 下加一句 ≤100 字符定位语。","Add a ≤100-char tagline right under the H1.");}}}
+   push("h1_tagline","H1 标题 + 一句话 tagline","H1 title + tagline",10,ok,detail,sugg);}
+
+  /* 2 badges 5 */
+  {const hits=[];lines.slice(0,15).forEach((line,i)=>{ if(!RE_IMAGE_LINE.test(line))return;
+     const m=[...line.matchAll(RE_IMAGE_SRC)];if(!m.length)return;
+     const url=m[m.length-1][2].toLowerCase();
+     if(BADGE_HINTS.some(h=>url.includes(h)))hits.push(i+1);});
+   const ok=hits.length>0;
+   push("badges","徽章区","Badges",5,ok,
+     ok?(LANG==="zh"?`检测到 ${hits.length} 枚徽章（第 ${hits[0]} 行起）`:`${hits.length} badge(s) found at line ${hits[0]}`)
+       :L("文件前 15 行内未发现徽章","No badge within first 15 lines"),
+     ok?NOFIX():S("加 2–4 枚 shields.io/badgen.net 徽章。","Add 2–4 shields.io / badgen.net badges."));}
+
+  /* 3 intro_short 10 */
+  {const paras=paragraphs(lines);
+   if(!paras.length){push("intro_short","简介段 ≤120 字","Intro ≤120 chars",10,false,L("未找到简介段落","No intro paragraph found"),S("写一段 ≤120 字简介。","Write a ≤120-char intro."));}
+   else{const longest=paras.slice(0,3).reduce((a,b)=>b.length>a.length?b:a);const n=longest.length;
+     const ok=n<=120;
+     push("intro_short","简介段 ≤120 字","Intro ≤120 chars",10,ok,
+       (LANG==="zh"?`简介段 ${n} 字`:`${n} chars`),
+       ok?NOFIX():S(`压到 120 字以内（当前 ${n}）。`,`Trim to ≤120 chars (now ${n}).`));}}
+
+  /* 4 install_code 15 */
+  {const idx=findHeading(lines,"install|安装");
+   if(idx===null){push("install_code","Install 节含命令行","Install section with command",15,false,
+     L("未找到 Install（安装）节","No Install heading"),
+     S("增加 `## Install` 节并在围栏内给命令。","Add `## Install` with a fenced command."));}
+   else{const blocks=fenceBlocks(section(lines,idx));let hit=null;
+     for(const b of blocks)for(const line of b){const tk=line.trim().split(/\s+/);if(tk.length&&COMMAND_TOKENS.has(tk[0])){hit=line.trim();break;}}
+     push("install_code","Install 节含命令行","Install section with command",15,!!hit,
+       hit?(LANG==="zh"?`Install 命令：${hit.slice(0,44)}`:`Command: ${hit.slice(0,44)}`):L("Install 节缺少围栏代码块命令","No fenced command inside Install"),
+       hit?NOFIX():S("用 ``` 围栏包住 pip/npm 等命令。","Wrap the command in a ``` fence."));}}
+
+  /* 5 quickstart 15 */
+  {const idx=findHeading(lines,"quick\\s*start|getting started|快速开始|快速上手|快速启动");
+   if(idx===null){push("quickstart","Quickstart ≤10 步","Quickstart ≤10 steps",15,false,
+     L("未找到 Quickstart（快速开始）节","No Quickstart heading"),
+     S("增加 `## Quickstart`：最短可运行路径。","Add `## Quickstart`: shortest path to running."));}
+   else{
+     const sec=section(lines,idx);
+     const ordered=sec.filter(l=>RE_ORDERED.test(l));
+     let steps=null,how="";
+     if(ordered.length){
+       steps=ordered.length;
+       how=(LANG==="zh"?`${steps} 个编号步骤`:`${steps} numbered steps`);
+     } else {
+       const blocks=fenceBlocks(sec);
+       if(blocks.length===0){
+         push("quickstart","Quickstart ≤10 步","Quickstart ≤10 steps",15,false,
+           L("Quickstart 节没有编号步骤或命令块","No numbered steps or command block in Quickstart"),
+           S("用编号步骤或命令块。","Use numbered steps or a command block."));
+         steps=null;
+       } else {
+         steps=blocks[0].filter(l=>l.trim()).length;
+         how=(LANG==="zh"?`${steps} 条命令`:`${steps} command line(s)`);
+       }
+     }
+     if(steps!==null&&steps!==undefined){
+       const ok=steps<=10;
+       push("quickstart","Quickstart ≤10 步","Quickstart ≤10 steps",15,ok,
+         (LANG==="zh"?`共 ${steps} 步`:`${steps} step(s)`)+` (${how})`,
+         ok?NOFIX():S(`超过 10 步（当前 ${steps}），拆进进阶文档。`,`Over 10 steps (${steps}); move extras elsewhere.`));
+     }
+   }}
+/* 6 usage_example 10 */
+  {const idx=findHeading(lines,"usage|example|用法|示例|使用");
+   if(idx===null)push("usage_example","用法示例节","Usage/example section",10,false,
+     L("未找到 Usage（用法示例）节","No Usage heading"),S("增加 `## Usage` 并给示例代码块。","Add `## Usage` with a fenced example."));
+   else{const blocks=fenceBlocks(section(lines,idx));const ok=blocks.length>0;
+     push("usage_example","用法示例节","Usage/example section",10,ok,
+       ok?L("发现用法示例代码块","Fenced usage example found"):L("Usage 节缺少代码块示例","No fenced example inside Usage"),
+       ok?NOFIX():S("给『输入→输出』最小示例。","Show a minimal input→output example."));}}
+
+  /* 7 media_placeholder 5 */
+  {let ok=false,detail="";
+   outer:for(const line of lines){for(const m of line.matchAll(/!\[([^\]]*)\]\(([^)]*)\)/g)){
+     if(RE_MEDIA_IMG.test(m[1])||RE_MEDIA_IMG.test(m[2])||/\.(gif|png|jpe?g|webp|mp4)$/i.test(m[2])){
+       ok=true;detail=`${m[1]} (${m[2].slice(0,40)})`;break outer;}}}
+   if(!ok){const nc=withoutCode(lines);
+     for(let i=0;i<nc.length;i++){if(RE_MEDIA_WORDS.test(nc[i])){ok=true;detail=(LANG==="zh"?`第 ${i+1} 行提及演示素材`:`media mention at line ${i+1}`);break;}}}
+   push("media_placeholder","截图/GIF 占位说明","Screenshot/GIF placeholder",5,ok,
+     ok?detail:L("未发现截图/GIF 或相关占位说明","No screenshot/GIF or placeholder found"),
+     ok?NOFIX():S("加一行 `![demo](docs/demo.gif)` 占位。","Add `![demo](docs/demo.gif)` placeholder."));}
+
+  /* 8 license_section 10 */
+  {const idx=findHeading(lines,"licen[cs]e|许可");
+   if(idx===null)push("license_section","License 节","License section",10,false,
+     L("未找到 License 节","No License heading"),S("新增 `## License` 注明许可证。","Add `## License` naming the license."));
+   else{const content=section(lines,idx).filter(l=>l.trim()&&!RE_ATX.test(l));
+     if(!content.length)push("license_section","License 节","License section",10,false,
+       L("License 节内容为空","License section is empty"),S("注明许可证类型与链接。","Name the license and link it."));
+     else{const m=(" "+content.join(" ")).match(RE_LICENSE_KW);
+       const kind=m?m[1].toUpperCase():(LANG==="zh"?"已声明许可证":"license declared");
+       push("license_section","License 节","License section",10,true,(LANG==="zh"?`已声明：${kind}`:`Declared: ${kind}`),NOFIX());}}}
+
+  /* 9 contributing 5 */
+  {const idx=findHeading(lines,"contribut|贡献|参与|协作");
+   if(idx===null)push("contributing","Contributing 节","Contributing section",5,false,
+     L("未找到 Contributing 节","No Contributing heading"),S("新增节说明 issue/PR 流程或链接 CONTRIBUTING.md。","Add the section or link CONTRIBUTING.md."));
+   else{const content=section(lines,idx).filter(l=>l.trim()&&!RE_ATX.test(l));
+     const ok=content.length>0;
+     push("contributing","Contributing 节","Contributing section",5,ok,
+       ok?L("Contributing 节存在且有内容","Section present with content"):L("Contributing 节内容为空","Section is empty"),
+       ok?NOFIX():S("写一句引导或链接 CONTRIBUTING.md。","Add guidance or link CONTRIBUTING.md."));}}
+
+  /* 10 no_todo 5 */
+  {const nc=withoutCode(lines);let bad=null;
+   for(let i=0;i<nc.length;i++){if(RE_TODO.test(nc[i])){bad={i:i+1,line:nc[i]};break;}}
+   push("no_todo","无 TODO/FIXME 残留","No TODO/FIXME left",5,!bad,
+     bad?(LANG==="zh"?`第 ${bad.i} 行残留`:`leftover at line ${bad.i}`):L("未发现裸 TODO/FIXME","No bare TODO/FIXME"),
+     bad?S("换成 Issue 链接或删除。","Replace with an issue link or delete."):NOFIX());}
+
+  /* 11 heading_skip 5 */
+  {let prev=null,bad=null;
+   for(let i=0;i<lines.length;i++){const m=RE_ATX.exec(lines[i]);if(!m)continue;
+     const lvl=m[1].length;
+     if(prev!==null&&lvl>prev+1){bad={i:i+1,prev,lvl};break;}
+     prev=lvl;}
+   push("heading_skip","标题层级不跳级","No heading-level jumps",5,!bad,
+     bad?(LANG==="zh"?`第 ${bad.i} 行 H${bad.prev} → H${bad.lvl} 跳级`:`line ${bad.i}: H${bad.prev} → H${bad.lvl} jump`):L("标题层级逐级递进，无跳级","Levels progress without jumps"),
+     bad?S("补中间层级标题。","Insert intermediate levels."):NOFIX());}
+
+  /* 12 link_format 5 */
+  {const urls=[];for(const line of withoutCode(lines)){
+     for(const m of line.matchAll(RE_MD_LINK))urls.push(m[1]);
+     for(const m of line.matchAll(RE_AUTOLINK))urls.push(m[0].slice(1,-1));
+     for(const m of line.matchAll(RE_BARE_URL))urls.push(m[0]);}
+   const seen=[];for(const u of urls)if(!seen.includes(u))seen.push(u);
+   if(!seen.length)push("link_format","外链格式合法","External link format",5,true,L("无外链，跳过校验","No external links — skipped"),NOFIX());
+   else{let badU=null;
+     for(const u of seen){
+       try{const url=new URL(u);
+         if(url.protocol!=="http:"&&url.protocol!=="https:")throw 0;
+         if(!url.hostname||/\s/.test(u))throw 0;
+         if(url.port!==""&&!(+url.port>=1&&+url.port<=65535))throw 0;
+       }catch(e){badU=u;break;}}
+       push("link_format","外链格式合法","External link format",5,!badU,
+         badU?L("非法外链："+badU,"Invalid URL: "+badU):(LANG==="zh"?`校验 ${seen.length} 条外链格式全部合法`:`all ${seen.length} external link(s) well-formed`),
+         badU?S("写成完整 https://… 形式。","Use full https://… form."):NOFIX());}}
+
+  return results;
+}
+
+/* ---------- render & scoring ---------- */
+function score(results){
+  let total=0,passed=0;
+  for(const r of results){if(r.passed)total+=r.weight;passed+=r.passed?1:0;}
+  return {total,passed};}
+
+function runScore(){
+  const text=document.getElementById("input").value;
+  const out=document.getElementById("output");
+  if(!text.trim()){document.getElementById("verdict").textContent=t().empty;return;}
+  const results=runChecks(text);
+  const {total,passed}=score(results);
+  out.classList.remove("hidden");
+  document.getElementById("num").textContent=total;
+  const ring=document.getElementById("ring");
+  ring.style.setProperty("--pct",total);
+  ring.style.setProperty("--ring",total>=85?"#3fb950":total>=70?"#58a6ff":total>=50?"#d29922":"#f85149");
+  const v=t().verdicts.find(v=>total>=v[0]);
+  document.getElementById("verdict").textContent=v?v[1]:"—";
+  document.getElementById("verdict").style.color=ring.style.getPropertyValue("--ring");
+  document.getElementById("detailTitle").textContent=t().detail+" ("+t().passedOf(passed,results.length)+")";
+  const ul=document.getElementById("checksList");ul.innerHTML="";
+  for(const r of results){
+    const li=document.createElement("li");li.className="check";
+    li.innerHTML=`<div class="t"><span><span class="${r.passed?'pass':'fail'}">${r.passed?t().pass:t().fail}</span>　${r.title}</span><span class="w">+${r.weight}</span></div>`
+      +`<div class="detail">${escapeHtml(r.detail)}</div>`
+      +(r.passed?"":`<div class="sugg">${escapeHtml(r.suggestion)}</div>`);
+    ul.appendChild(li);}}
+
+function loadExample(){
+  document.getElementById("input").value=EXAMPLE;}
+function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function toggleLang(){
+  LANG=LANG==="en"?"zh":"en";
+  document.documentElement.lang=LANG==="zh"?"zh-CN":"en";
+  document.getElementById("langBtn").textContent=LANG==="en"?"中文":"English";
+  document.getElementById("tagline").textContent=t().tagline;
+  document.getElementById("goBtn").textContent=t().go;
+  document.getElementById("exBtn").textContent=t().ex;
+  document.getElementById("clrBtn").textContent=t().clr;
+  document.getElementById("gaugeLabel").textContent=t().score;
+  const has=document.getElementById("num").textContent!=="–";
+  if(has)runScore();
+  const outEl=document.getElementById("output");
+  if(!outEl.classList.contains("hidden"))runScore();}
+
+const EXAMPLE=[
+"# My Awesome Tool",
+"",
+"A tiny CLI that turns messy logs into clean summaries.",
+"",
+"[![CI](https://img.shields.io/badge/build-passing-brightgreen)](https://example.com) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)",
+"",
+"My Awesome Tool parses application logs and produces human-readable daily digests so you can stop grepping.",
+"",
+"## Install",
+"",
+"```bash",
+"pip install awesome-tool",
+"```",
+"",
+"## Quickstart",
+"",
+"1. Collect logs into one folder",
+"2. Run `awesome-tool ./logs`",
+"3. Open `digest.html`",
+"",
+"## Usage",
+"",
+"```bash",
+"$ awesome-tool ./logs --since 7d",
+"Wrote digest.html with 42 incidents.",
+"```",
+"",
+"![demo screenshot](docs/demo.gif)",
+"",
+"## Contributing",
+"",
+"Issues and PRs are welcome — run the tests locally first.",
+"",
+"## License",
+"",
+"[MIT](LICENSE) © 2025",
+""].join("\n");
+</script>
+</body>
+</html>
