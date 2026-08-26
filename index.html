@@ -279,7 +279,7 @@ function runChecks(text){
   /* 10 no_todo 5 */
   {const nc=withoutCode(lines);let bad=null;
    for(let i=0;i<nc.length;i++){if(RE_TODO.test(nc[i])){bad={i:i+1,line:nc[i]};break;}}
-   push("no_todo","无 TODO/FIXME 残留","No TODO/FIXME left",5,!bad,
+   push("no_todo","无未完成标记残留","No TODO/FIXME left",5,!bad,
      bad?(LANG==="zh"?`第 ${bad.i} 行残留`:`leftover at line ${bad.i}`):L("未发现裸 TODO/FIXME","No bare TODO/FIXME"),
      bad?S("换成 Issue 链接或删除。","Replace with an issue link or delete."):NOFIX());}
 
