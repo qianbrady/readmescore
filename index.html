@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Free online README scorer: paste your README.md and get an honest 0-100 score across 12 weighted checks, with a concrete fix for every failed check. 100% offline.">
 <meta name="keywords" content="readme scorer, readme checker, readme quality, documentation grader">
-<meta property="og:title" content="index">
+<meta property="og:title" content="ReadmeScore — honest 0-100 README scorer with concrete fixes">
 <meta property="og:description" content="Free online README scorer: paste your README.md and get an honest 0-100 score across 12 weighted checks, with a concrete fix for every failed check. 100% offline.">
 <title>ReadmeScore — README quality scorer (0–100)</title>
 <style>
@@ -114,7 +114,7 @@ const RE_AUTOLINK = /<https?:\/\/[^>\s]+>/g;
 const RE_BARE_URL = /https?:\/\/[^\s<>"')\]\u3000]*/g;
 const RE_TODO = /\b(?:TODO|FIXME|XXX)\b/;
 const RE_ORDERED = /^\s*\d{1,3}[.)]\s+\S/;
-const RE_LICENSE_KW = /\b(MIT|APACHE-?2\.?0?|GPL-?[0-9]|BSD-?[0-9]?|ISC|UNLICENSE|CC0|MPL-?2\.0?)\b/i;
+const RE_LICENSE_KW = /\b(MIT|APACHE-?2\.0?|GPL-?[0-9]|BSD-?[0-9]?|ISC|UNLICENSE|CC0|MPL-?2\.0?)\b/i;
 const RE_MEDIA_IMG = /demo|screen|screenshot|gif|预览|截图/i;
 const RE_MEDIA_WORDS = /screenshot|screencast|demo|gif|动画|截图|演示|预览/i;
 const BADGE_HINTS = ["img.shields.io","shields.io","badgen.net","github.com/","/badge/"];
@@ -159,7 +159,7 @@ function runChecks(text){
   /* 1 h1_tagline 10 */
   const nonEmpty=lines.filter(l=>l.trim());
   {let ok=false,detail="",sugg="";
-   if(!nonEmpty.length){detail=Z?"文件为空或无可读内容":"File is empty or unreadable";sugg=S("从首行开始写：`# <项目名>`, 下一行紧跟一句话定位。","Start line 1 with `# <Project>` then one-line tagline.");}
+   if(!nonEmpty.length){detail=LANG==="zh"?"文件为空或无可读内容":"File is empty or unreadable";sugg=S("从首行开始写：`# <项目名>`, 下一行紧跟一句话定位。","Start line 1 with `# <Project>` then one-line tagline.");}
    else{const first=nonEmpty[0];const m=RE_ATX.exec(first);
      if(!m){detail=L("首行不是 H1 标题","First line is not an H1");sugg=S("把第一行改为 `# <项目名>`。","Make line 1 `# <Project>`.");}
      else if(m[1].length!==1){detail=L(`首行是 H${m[1].length} 而非 H1`,`Line 1 is H${m[1].length}, not H1`);sugg=S("改为单井号 H1。","Use a single # (H1).");}
@@ -167,7 +167,7 @@ function runChecks(text){
        for(const line of nonEmpty.slice(1)){
          if(RE_ATX.test(line)||RE_IMAGE_LINE.test(line)||RE_FENCE.test(line))continue;
          seen++;
-         if(line.trim().length<=100){ok=true;detail=L("H1 与一句话 tagline 齐全","H1 + tagline present");break;}
+         if([...line.trim()].length<=100){ok=true;detail=L("H1 与一句话 tagline 齐全","H1 + tagline present");break;}
          if(seen>=3)break;}
        if(!ok){detail=L("H1 后前 3 行内未发现一句话 tagline","No one-line tagline within 3 lines after H1");
          sugg=S("在 H1 下加一句 ≤100 字符定位语。","Add a ≤100-char tagline right under the H1.");}}}
@@ -187,7 +187,7 @@ function runChecks(text){
   /* 3 intro_short 10 */
   {const paras=paragraphs(lines);
    if(!paras.length){push("intro_short","简介段 ≤120 字","Intro ≤120 chars",10,false,L("未找到简介段落","No intro paragraph found"),S("写一段 ≤120 字简介。","Write a ≤120-char intro."));}
-   else{const longest=paras.slice(0,3).reduce((a,b)=>b.length>a.length?b:a);const n=longest.length;
+   else{const longest=paras.slice(0,3).reduce((a,b)=>[...b].length>[...a].length?b:a);const n=[...longest].length;
      const ok=n<=120;
      push("intro_short","简介段 ≤120 字","Intro ≤120 chars",10,ok,
        (LANG==="zh"?`简介段 ${n} 字`:`${n} chars`),
